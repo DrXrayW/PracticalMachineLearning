@@ -1,0 +1,143 @@
+---
+title: "Activity Recognition of Weight Lifting"
+author: "Xray Wang"
+date: "March 14, 2016"
+output: html_document
+---
+
+## Synopsis
+
+This report is about creating qualitative models to recognize different classes of activities of correctly and incorrectly performed weight lifting exercises.  We created different models on training data, evaluated them on the validation data, choosing the best performing model as our final model to be used on test data.  
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv).
+
+The test data are available [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv).
+
+The data for this project come from this [source](http://groupware.les.inf.puc-rio.br/har). If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+
+## Prepare Data
+
+The report requires the following R libraries. 
+
+```{r,results='hide',warning=FALSE,error=FALSE, message=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+
+```
+
+We first load the training and testing datasets using a funcion. 
+
+```{r,warning=FALSE,error=FALSE}
+
+load = function(url, file) {
+        if(!file.exists(file)){
+                download.file(url, file)
+        }
+        read.csv(file, na.strings=c("NA","#DIV/0!",""))
+}
+
+training = load("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+                "training.csv")
+testing = load("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+               "testing.csv")
+```
+
+Then we dropped the first 7 columns as they are not useful for our task. 
+
+```{r,warning=FALSE,error=FALSE}
+
+trainClean = training[,-(1:7)]
+testClean = testing[,-(1:7)]
+
+```
+
+Drop all the columns with NA values. 
+
+
+```{r,warning=FALSE,error=FALSE}
+dropC = c()
+for(i in 1:ncol(trainClean)){
+        m = mean(is.na(trainClean[,i]))
+        if(m >0) {
+                dropC = c(dropC, i)
+        }
+}
+
+trainClean = trainClean[,-dropC]
+testClean = testClean[,-dropC]
+
+```
+
+
+Next, we try to drop the near zero columns, but there are none left. 
+
+```{r,warning=FALSE,error=FALSE}
+
+inNZR = nearZeroVar(trainClean)
+length(inNZR)
+```
+
+Then we split the training set into a training set with 60% of the training set data and the rest 40% as a validation set. 
+
+```{r,warning=FALSE,error=FALSE}
+set.seed(20160314)
+inTrain <- createDataPartition(trainClean$classe, p=0.6, list=FALSE)
+train <- trainClean[inTrain, ]
+validation <- trainClean[-inTrain, ]
+
+```
+
+## Models
+
+Now we build models base on the training set we have now. 
+
+### Decision Tree Model
+
+```{r,warning=FALSE,error=FALSE}
+set.seed(20160314)
+
+dt = rpart(classe~., data=train, method='class')
+fancyRpartPlot(dt)
+
+```
+
+Then we test the model with the validation data set. 
+
+
+```{r,warning=FALSE,error=FALSE}
+dtPredict = predict(dt, newdata=validation, type='class')
+confusionMatrix(dtPredict, validation$classe)
+
+```
+
+### Random Forests
+
+Build a random forest model and test with validation data. 
+
+```{r,warning=FALSE,error=FALSE}
+set.seed(20160314)
+
+rfmodel = randomForest(classe ~ ., data=train)
+rfPredict = predict(rfmodel, newdata=validation)
+ 
+confusionMatrix(rfPredict, validation$classe)
+
+```
+
+We can see the accuracy is with pretty high accuracy, which is a good estimation of our out of sample accuracy (and therefore error).  So we decided to go with this model for test set. 
+
+## Apply to Test Set
+
+```{r,warning=FALSE,error=FALSE}
+predict(rfmodel, newdata=testClean)
+```
